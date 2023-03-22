@@ -6,6 +6,10 @@ fn main() -> Result<()> {
     println!("Spining up mydocker ...");
 
     let args: Vec<_> = std::env::args().collect();
+    if args.len() < 4 {
+        return Err(anyhow::anyhow!("Not enough arguments"));
+    }
+
     let command = &args[3];
     let command_args = &args[4..];
     let output = std::process::Command::new(command)
