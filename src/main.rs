@@ -1,4 +1,5 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
+use std::io::{self, Write};
 
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 fn main() -> Result<()> {
@@ -14,20 +15,11 @@ fn main() -> Result<()> {
     let command_args = &args[4..];
     let output = std::process::Command::new(command)
         .args(command_args)
-        .output()
-        .with_context(|| {
-            format!(
-                "Tried to run '{}' with arguments {:?}",
-                command, command_args
-            )
-        })?;
+        .output()?;
 
-    if output.status.success() {
-        let std_out = std::str::from_utf8(&output.stdout)?;
-        println!("{}", std_out);
-    } else {
-        std::process::exit(1);
-    }
+    println!("{}", output.status);
+    io::stdout().write_all(&output.stdout)?;
+    io::stderr().write_all(&output.stderr)?;
 
     Ok(())
 }
