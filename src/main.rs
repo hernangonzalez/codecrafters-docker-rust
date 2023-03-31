@@ -17,5 +17,9 @@ fn main() -> Result<()> {
     io::stdout().write_all(&output.stdout)?;
     io::stderr().write_all(&output.stderr)?;
 
+    if let Some(code) = output.status.code() {
+        std::process::exit(code);
+    }
+
     Ok(())
 }
