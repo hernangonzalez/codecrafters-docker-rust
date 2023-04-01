@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
+use std::env;
 use std::fs;
+use std::fs::Permissions;
 use std::io::{self, Write};
 use std::os::unix;
 use std::path::Path;
@@ -18,7 +20,9 @@ fn main() -> Result<()> {
     let command_args = &args[4..];
 
     let root = prepare_root(command)?;
-    unix::fs::chroot(root).context("could not change root")?;
+
+    unix::fs::chroot(root).context("changing root")?;
+    env::set_current_dir("/").context("setting env current dir to /")?;
 
     let output = std::process::Command::new(command)
         .args(command_args)
@@ -35,6 +39,8 @@ fn main() -> Result<()> {
 }
 
 fn prepare_root(cmd: &Path) -> Result<TempDir> {
+    use unix::fs::PermissionsExt;
+
     let filename = cmd.file_name().context("cmd filename")?;
     let temp_dir = tempdir()?;
 
@@ -43,7 +49,10 @@ fn prepare_root(cmd: &Path) -> Result<TempDir> {
     fs::create_dir(path.as_path())?;
 
     path.push(filename);
-    fs::copy(cmd, path)?;
+    fs::copy(cmd, path.as_path())?;
+
+    let perm = Permissions::from_mode(0o777);
+    std::fs::set_permissions(path, perm)?;
 
     Ok(temp_dir)
 }
