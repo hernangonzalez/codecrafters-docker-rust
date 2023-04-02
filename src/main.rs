@@ -1,11 +1,14 @@
 use anyhow::{Context, Result};
 use std::env;
 use std::fs;
+use std::fs::File;
 use std::fs::Permissions;
 use std::io::{self, Write};
 use std::os::unix;
 use std::path::Path;
+use std::process;
 use tempfile::{tempdir, TempDir};
+use unix::fs::PermissionsExt;
 
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 fn main() -> Result<()> {
@@ -20,13 +23,25 @@ fn main() -> Result<()> {
     let command_args = &args[4..];
 
     let root = prepare_root(command)?;
+    unix::fs::chroot(root)?;
+    env::set_current_dir("/")?;
 
-    unix::fs::chroot(root).context("changing root")?;
-    env::set_current_dir("/").context("setting env current dir to /")?;
+    fs::create_dir("/dev").context("create /dev")?;
+    File::create("/dev/null")?.set_permissions(Permissions::from_mode(0o666))?;
 
-    let output = std::process::Command::new(command)
+    let child_process = process::Command::new(command)
         .args(command_args)
-        .output()?;
+        .spawn()
+        .with_context(|| {
+            format!(
+                "Tried to run '{:?}' with arguments {:?}",
+                command, command_args
+            )
+        })?;
+
+    let output = child_process
+        .wait_with_output()
+        .expect("Failed to wait on child");
 
     io::stdout().write_all(&output.stdout)?;
     io::stderr().write_all(&output.stderr)?;
@@ -39,7 +54,7 @@ fn main() -> Result<()> {
 }
 
 fn prepare_root(cmd: &Path) -> Result<TempDir> {
-    use unix::fs::PermissionsExt;
+    let access_mode = 0o777;
 
     let filename = cmd.file_name().context("cmd filename")?;
     let temp_dir = tempdir()?;
@@ -50,9 +65,10 @@ fn prepare_root(cmd: &Path) -> Result<TempDir> {
 
     path.push(filename);
     fs::copy(cmd, path.as_path())?;
+    dbg!(&path);
 
-    let perm = Permissions::from_mode(0o777);
-    std::fs::set_permissions(path, perm)?;
+    let perm = Permissions::from_mode(access_mode);
+    fs::set_permissions(path, perm)?;
 
     Ok(temp_dir)
 }
