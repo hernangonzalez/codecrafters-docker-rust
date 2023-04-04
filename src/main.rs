@@ -65,7 +65,6 @@ fn prepare_root(cmd: &Path) -> Result<TempDir> {
 
     path.push(filename);
     fs::copy(cmd, path.as_path())?;
-    dbg!(&path);
 
     let perm = Permissions::from_mode(access_mode);
     fs::set_permissions(path, perm)?;
