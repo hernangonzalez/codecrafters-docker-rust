@@ -36,10 +36,12 @@ fn main() -> Result<()> {
         .args(command_args)
         .spawn()
         .with_context(|| {
-            format!(
+            let msg = format!(
                 "Tried to run '{:?}' with arguments {:?}",
                 command, command_args
-            )
+            );
+            println!("{msg}");
+            msg
         })?;
 
     let output = child_process
