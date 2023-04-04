@@ -1,14 +1,15 @@
 use anyhow::{Context, Result};
 use std::env;
-use std::fs;
-use std::fs::File;
-use std::fs::Permissions;
+use std::fs::{self, File, Permissions};
 use std::io::{self, Write};
 use std::os::unix;
 use std::path::Path;
 use std::process;
-use tempfile::{tempdir, TempDir};
+use tempfile::tempdir;
 use unix::fs::PermissionsExt;
+
+const EXEC_MODE: u32 = 0o777;
+const RW_MODE: u32 = 0o666;
 
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 fn main() -> Result<()> {
@@ -22,26 +23,17 @@ fn main() -> Result<()> {
     let command = Path::new(&args[3]);
     let command_args = &args[4..];
 
-    let root = prepare_root(command)?;
-    unix::fs::chroot(root).context("chroot to tempDir")?;
-    env::set_current_dir("/").context("set current dir to /")?;
-
-    fs::create_dir("/dev").context("create /dev")?;
-    File::create("/dev/null")
-        .context("create /dev/null")?
-        .set_permissions(Permissions::from_mode(0o666))
-        .context("set /dev/null access mode")?;
+    prepare_root(command)?;
+    prepare_fs()?;
 
     let child_process = process::Command::new(command)
         .args(command_args)
         .spawn()
         .with_context(|| {
-            let msg = format!(
+            format!(
                 "Tried to run '{:?}' with arguments {:?}",
                 command, command_args
-            );
-            println!("{msg}");
-            msg
+            )
         })?;
 
     let output = child_process
@@ -58,19 +50,32 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn prepare_root(cmd: &Path) -> Result<TempDir> {
+fn prepare_fs() -> Result<()> {
+    fs::create_dir("/dev").context("create /dev")?;
+    fs::set_permissions("/dev", Permissions::from_mode(RW_MODE))?;
+    File::create("/dev/null")
+        .context("create /dev/null")?
+        .set_permissions(Permissions::from_mode(RW_MODE))
+        .context("set /dev/null access mode")?;
+    Ok(())
+}
+
+fn prepare_root(cmd: &Path) -> Result<()> {
     let filename = cmd.file_name().context("cmd filename")?;
     let temp_dir = tempdir()?;
 
     let mut path = temp_dir.path().join(cmd.strip_prefix("/")?);
     path.pop();
-    fs::create_dir(path.as_path())?;
+    fs::create_dir_all(&path).context("create dir for command")?;
 
     path.push(filename);
     fs::copy(cmd, path.as_path())?;
 
-    let perm = Permissions::from_mode(0o777);
+    let perm = Permissions::from_mode(EXEC_MODE);
     fs::set_permissions(path, perm)?;
 
-    Ok(temp_dir)
+    unix::fs::chroot(temp_dir.path()).context("chroot to tempDir")?;
+    env::set_current_dir("/").context("set current dir to /")?;
+
+    Ok(())
 }
