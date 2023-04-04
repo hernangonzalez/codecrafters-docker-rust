@@ -23,11 +23,14 @@ fn main() -> Result<()> {
     let command_args = &args[4..];
 
     let root = prepare_root(command)?;
-    unix::fs::chroot(root)?;
-    env::set_current_dir("/")?;
+    unix::fs::chroot(root).context("chroot to tempDir")?;
+    env::set_current_dir("/").context("set current dir to /")?;
 
     fs::create_dir("/dev").context("create /dev")?;
-    File::create("/dev/null")?.set_permissions(Permissions::from_mode(0o666))?;
+    File::create("/dev/null")
+        .context("create /dev/null")?
+        .set_permissions(Permissions::from_mode(0o666))
+        .context("set /dev/null access mode")?;
 
     let child_process = process::Command::new(command)
         .args(command_args)
@@ -54,8 +57,6 @@ fn main() -> Result<()> {
 }
 
 fn prepare_root(cmd: &Path) -> Result<TempDir> {
-    let access_mode = 0o777;
-
     let filename = cmd.file_name().context("cmd filename")?;
     let temp_dir = tempdir()?;
 
@@ -66,7 +67,7 @@ fn prepare_root(cmd: &Path) -> Result<TempDir> {
     path.push(filename);
     fs::copy(cmd, path.as_path())?;
 
-    let perm = Permissions::from_mode(access_mode);
+    let perm = Permissions::from_mode(0o777);
     fs::set_permissions(path, perm)?;
 
     Ok(temp_dir)
