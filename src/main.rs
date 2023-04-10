@@ -1,9 +1,10 @@
 mod command;
+mod fs;
+mod image;
 
 use anyhow::{self, Result};
 use std::path::Path;
 
-// Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().collect();
     if args.len() < 4 {
@@ -11,9 +12,11 @@ fn main() -> Result<()> {
     }
 
     let _action = &args[1];
-    let _image = &args[2];
+    let image = &args[2];
     let command = Path::new(&args[3]);
     let command_args = &args[4..];
 
+    // image::fetch(image)?;
+    fs::isolate(command)?;
     command::run(command, command_args)
 }
