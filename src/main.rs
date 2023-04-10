@@ -1,4 +1,4 @@
-mod run;
+mod command;
 
 use anyhow::{self, Result};
 use std::path::Path;
@@ -15,5 +15,5 @@ fn main() -> Result<()> {
     let command = Path::new(&args[3]);
     let command_args = &args[4..];
 
-    run::command(command, command_args)
+    command::run(command, command_args)
 }

@@ -10,7 +10,7 @@ use tempfile::tempdir;
 const EXEC_MODE: u32 = 0o777;
 const RW_MODE: u32 = 0o666;
 
-pub fn command(cmd: &Path, args: &[String]) -> Result<()> {
+pub fn run(cmd: &Path, args: &[String]) -> Result<()> {
     prepare_root(cmd)?;
     prepare_fs()?;
     start_namespace()?;
