@@ -12,7 +12,7 @@ fn main() -> Result<()> {
     }
 
     let _action = &args[1];
-    let image = &args[2];
+    let _image = &args[2];
     let command = Path::new(&args[3]);
     let command_args = &args[4..];
 
