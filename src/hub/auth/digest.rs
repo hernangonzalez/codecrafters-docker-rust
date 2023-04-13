@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use regex::Regex;
-use serde::*;
+use serde::Serialize;
 use std::str::FromStr;
 
 #[derive(Serialize, Debug)]
