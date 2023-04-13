@@ -34,7 +34,7 @@ fn prepare_root(cmd: &Path) -> Result<()> {
     fs::create_dir_all(&path).context("create dir for command")?;
 
     path.push(filename);
-    fs::copy(cmd, path.as_path())?;
+    fs::copy(cmd, path.as_path()).context("copy target to tmpDir")?;
 
     let perm = Permissions::from_mode(EXEC_MODE);
     fs::set_permissions(path, perm)?;

@@ -5,6 +5,7 @@ use std::process;
 
 pub fn run(cmd: &Path, args: &[String]) -> Result<()> {
     assert!(cmd.exists(), "Command {cmd:?} does not exist.");
+    assert!(Path::new("/dev/null").exists());
 
     let child_process = process::Command::new(cmd)
         .args(args)
