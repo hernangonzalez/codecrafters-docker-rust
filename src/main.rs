@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     ensure!(action == "run", "Only `run` is a supported action");
 
     // todo: fs::prepare_root()
-    hub::pull(image, Path::new("."))?;
+    hub::pull(image, Path::new("ttt"))?;
     fs::isolate(command)?;
     command::run(command, command_args)
 }

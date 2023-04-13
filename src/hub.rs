@@ -11,7 +11,11 @@ use http::{header, Client, Response, StatusCode};
 use manifest::{Manifest, MediaType};
 use reqwest as http;
 use serde::Deserialize;
-use std::{fs::File, path::Path};
+use std::{
+    fs::{self, File},
+    io,
+    path::Path,
+};
 use tar::Archive;
 
 const IMAGE_ALIAS_SEPARATOR: char = ':';
@@ -75,7 +79,6 @@ async fn fetch_manifest(repo: &str, tag: &str) -> Result<Manifest> {
         .iter()
         .find(|m| m.media_type == MediaType::ImageTarGZip)
         .context("image manifest")?;
-    dbg!(&manifest);
 
     Ok(manifest.clone())
 }
@@ -98,15 +101,20 @@ async fn fetch_image<'a>(repo: &str, manifest: Manifest) -> Result<Bytes> {
 }
 
 fn unpack(bytes: Bytes, dst: &Path) -> Result<()> {
-    let file = deflate(bytes)?;
+    let tar_path = dst.with_file_name("image.tar");
+    deflate(bytes, &tar_path)?;
+
+    let file = File::open(&tar_path)?;
     let mut archive = Archive::new(file);
     archive.unpack(dst)?;
+
+    fs::remove_file(tar_path)?;
     Ok(())
 }
 
-fn deflate(bytes: bytes::Bytes) -> Result<File> {
+fn deflate(bytes: bytes::Bytes, path: &Path) -> Result<()> {
     let mut gz = GzDecoder::new(&bytes[..]);
-    let mut file = File::create("image.tar")?;
-    std::io::copy(&mut gz, &mut file)?;
-    Ok(file)
+    let mut file = File::create(path)?;
+    io::copy(&mut gz, &mut file)?;
+    Ok(())
 }
