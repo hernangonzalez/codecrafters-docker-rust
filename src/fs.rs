@@ -1,47 +1,68 @@
 use anyhow::{Context, Ok, Result};
+use bytes::Bytes;
+use flate2::read::GzDecoder;
 use std::env;
-use std::fs::{self, File, Permissions};
 use std::os::unix::{self, fs::PermissionsExt};
-use std::path::Path;
+use std::{
+    fs::{self, File, Permissions},
+    io,
+    path::Path,
+};
+use tar::Archive;
 use tempfile::tempdir;
 
-const EXEC_MODE: u32 = 0o777;
 const RW_MODE: u32 = 0o666;
 
+pub fn create_root() -> Result<Box<Path>> {
+    let temp_dir = tempdir()?;
+    Ok(temp_dir.into_path().into_boxed_path())
+}
+
 pub fn isolate(cmd: &Path) -> Result<()> {
-    prepare_root(cmd)?;
+    change_root(cmd)?;
     prepare_fs()?;
     start_namespace()?;
     Ok(())
 }
 
-fn prepare_fs() -> Result<()> {
-    fs::create_dir("/dev").context("create /dev")?;
-    fs::set_permissions("/dev", Permissions::from_mode(RW_MODE))?;
-    File::create("/dev/null")
-        .context("create /dev/null")?
-        .set_permissions(Permissions::from_mode(RW_MODE))
-        .context("set /dev/null access mode")?;
+pub fn unpack(bytes: Bytes, dst: &Path) -> Result<()> {
+    let tar_path = dst.with_file_name("image.tar");
+    deflate(bytes, &tar_path)?;
+
+    let file = File::open(&tar_path)?;
+    let mut archive = Archive::new(file);
+    archive.unpack(dst)?;
+
+    fs::remove_file(tar_path)?;
     Ok(())
 }
 
-fn prepare_root(cmd: &Path) -> Result<()> {
-    let filename = cmd.file_name().context("cmd filename")?;
-    let temp_dir = tempdir()?;
+fn deflate(bytes: bytes::Bytes, path: &Path) -> Result<()> {
+    let mut gz = GzDecoder::new(&bytes[..]);
+    let mut file = File::create(path)?;
+    io::copy(&mut gz, &mut file)?;
+    Ok(())
+}
 
-    let mut path = temp_dir.path().join(cmd.strip_prefix("/")?);
-    path.pop();
-    fs::create_dir_all(&path).context("create dir for command")?;
+fn prepare_fs() -> Result<()> {
+    let path = Path::new("/dev");
+    if !path.exists() {
+        fs::create_dir("/dev").context("create /dev")?;
+        fs::set_permissions(path, Permissions::from_mode(RW_MODE))?;
+    }
+    let path = path.join("null");
+    if !path.exists() {
+        File::create("/dev/null")
+            .context("create /dev/null")?
+            .set_permissions(Permissions::from_mode(RW_MODE))
+            .context("set /dev/null access mode")?;
+    }
+    Ok(())
+}
 
-    path.push(filename);
-    fs::copy(cmd, path.as_path()).context("copy target to tmpDir")?;
-
-    let perm = Permissions::from_mode(EXEC_MODE);
-    fs::set_permissions(path, perm)?;
-
-    unix::fs::chroot(temp_dir.path()).context("chroot to tempDir")?;
+fn change_root(path: &Path) -> Result<()> {
+    unix::fs::chroot(path).context("chroot to tempDir")?;
     env::set_current_dir("/").context("set current dir to /")?;
-
     Ok(())
 }
 

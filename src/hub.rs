@@ -2,21 +2,16 @@ mod api;
 mod auth;
 mod manifest;
 
+use super::fs;
 use anyhow::{ensure, Context, Result};
 use api::DockerAPI;
 use auth::AuthDigest;
 use bytes::Bytes;
-use flate2::read::GzDecoder;
 use http::{header, Client, Response, StatusCode};
 use manifest::{Manifest, MediaType};
 use reqwest as http;
 use serde::Deserialize;
-use std::{
-    fs::{self, File},
-    io,
-    path::Path,
-};
-use tar::Archive;
+use std::path::Path;
 
 const IMAGE_ALIAS_SEPARATOR: char = ':';
 const IMAGE_TAG_DEFAULT: &str = "latest";
@@ -29,7 +24,7 @@ pub async fn pull(alias: &str, dst: &Path) -> Result<()> {
 
     let manifest = fetch_manifest(repo, tag).await?;
     let bytes = fetch_image(repo, manifest).await?;
-    unpack(bytes, dst)
+    fs::unpack(bytes, dst)
 }
 
 async fn send_request<'a>(client: &Client, api: DockerAPI<'a>) -> Result<Response> {
@@ -98,23 +93,4 @@ async fn fetch_image<'a>(repo: &str, manifest: Manifest) -> Result<Bytes> {
 
     let bytes = resp.bytes().await?;
     Ok(bytes)
-}
-
-fn unpack(bytes: Bytes, dst: &Path) -> Result<()> {
-    let tar_path = dst.with_file_name("image.tar");
-    deflate(bytes, &tar_path)?;
-
-    let file = File::open(&tar_path)?;
-    let mut archive = Archive::new(file);
-    archive.unpack(dst)?;
-
-    fs::remove_file(tar_path)?;
-    Ok(())
-}
-
-fn deflate(bytes: bytes::Bytes, path: &Path) -> Result<()> {
-    let mut gz = GzDecoder::new(&bytes[..]);
-    let mut file = File::create(path)?;
-    io::copy(&mut gz, &mut file)?;
-    Ok(())
 }

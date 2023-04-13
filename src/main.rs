@@ -15,8 +15,8 @@ fn main() -> Result<()> {
     let command_args = &args[4..];
     ensure!(action == "run", "Only `run` is a supported action");
 
-    // todo: fs::prepare_root()
-    hub::pull(image, Path::new("ttt"))?;
-    fs::isolate(command)?;
+    let path = fs::create_root()?;
+    hub::pull(image, &path)?;
+    fs::isolate(&path)?;
     command::run(command, command_args)
 }
