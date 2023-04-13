@@ -4,7 +4,7 @@ mod auth;
 use anyhow::{ensure, Context, Result};
 use api::DockerAPI;
 use auth::AuthDigest;
-use http::{header, Client, StatusCode, Url};
+use http::{header, Client, StatusCode};
 use reqwest as http;
 use std::path::Path;
 
@@ -27,23 +27,7 @@ pub async fn fetch<'a>(alias: &str) -> Result<&'a Path> {
 async fn fetch_manifest(name: &str, tag: &str) -> Result<Manifest> {
     let api = DockerAPI::ImageManifest { name, tag };
     let client = Client::new();
-
-    let build_req = |client: &Client| {
-        let url: Url = api.url()?;
-        let req = client
-            .get(url)
-            .header(
-                header::ACCEPT,
-                "application/vnd.docker.distribution.manifest.v2+json",
-            )
-            .header(
-                header::ACCEPT,
-                "application/vnd.docker.distribution.manifest.list.v2+json",
-            );
-        anyhow::Ok(req)
-    };
-
-    let request = build_req(&client)?;
+    let request = api.build(&client)?;
 
     let mut response = request.send().await?;
     if response.status() == StatusCode::UNAUTHORIZED {
@@ -54,8 +38,7 @@ async fn fetch_manifest(name: &str, tag: &str) -> Result<Manifest> {
             .to_str()?;
         let digest = wwwauth.parse::<AuthDigest>()?;
         let token = auth::authorise(digest, &client).await?;
-
-        let request = build_req(&client)?.bearer_auth(token);
+        let request = api.build(&client)?.bearer_auth(token);
         response = request.send().await?;
     }
 

@@ -12,8 +12,8 @@ struct AuthResponse {
 }
 
 pub async fn authorise(digest: AuthDigest, client: &Client) -> Result<String> {
-    let url = DockerAPI::Authorise.url()?;
-    let req = client.get(url).query(&digest);
+    let api = DockerAPI::Authorise;
+    let req = api.build(client)?.query(&digest);
     let response = req.send().await?;
     ensure!(response.status().is_success());
     let body: AuthResponse = response.json().await?;
